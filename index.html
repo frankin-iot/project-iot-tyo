@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROBOTIC IoT | SUHU & HUMIDITY</title>
+    <!-- Font & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Socket.IO -->
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: radial-gradient(circle at 20% 30%, #0a0f1e, #03050b);
+            font-family: 'Share Tech Mono', 'Orbitron', monospace;
+            color: #0ff;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        /* Grid cyber */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #0ff;
+            padding-bottom: 15px;
+            box-shadow: 0 5px 20px rgba(0, 255, 255, 0.2);
+        }
+        .header h1 {
+            font-family: 'Orbitron';
+            font-size: 2.5rem;
+            letter-spacing: 4px;
+            text-shadow: 0 0 8px #0ff, 0 0 15px #0ff;
+            animation: glitch 3s infinite;
+        }
+        @keyframes glitch {
+            0%, 100% { text-shadow: 0 0 5px #0ff, 0 0 10px #0ff; }
+            95% { text-shadow: 0 0 2px #0ff, 0 0 5px #0ff; }
+            96% { text-shadow: -2px 0 red, 2px 0 blue; }
+        }
+        .sub {
+            font-size: 0.9rem;
+            color: #8af;
+        }
+        .status-led {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #0f0;
+            box-shadow: 0 0 8px #0f0;
+            animation: pulse 1.5s infinite;
+            margin-left: 10px;
+        }
+        @keyframes pulse {
+            0% { opacity: 0.3; transform: scale(0.8);}
+            100% { opacity: 1; transform: scale(1.2);}
+        }
+
+        /* Card Gauge */
+        .gauge-panel {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
+            margin-bottom: 40px;
+        }
+        .card {
+            background: rgba(10, 20, 30, 0.7);
+            backdrop-filter: blur(8px);
+            border: 1px solid #0ff;
+            border-radius: 20px;
+            padding: 20px;
+            width: 260px;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0 30px #0ff;
+        }
+        .card i {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .card h3 {
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+        }
+        .value {
+            font-size: 56px;
+            font-weight: bold;
+            font-family: 'Orbitron';
+            margin: 10px 0;
+            text-shadow: 0 0 5px currentColor;
+        }
+        .temp-value { color: #ff4d4d; }
+        .hum-value { color: #4dffb5; }
+        .unit { font-size: 1rem; margin-left: 5px; }
+
+        /* Chart Container */
+        .chart-container {
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid #0ff;
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 40px;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+        }
+        canvas {
+            max-height: 350px;
+            width: 100%;
+        }
+
+        /* Log Table */
+        .log-section {
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid #0ff;
+            border-radius: 20px;
+            padding: 20px;
+            overflow-x: auto;
+        }
+        .log-section h3 {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.5rem;
+            color: #0ff;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Share Tech Mono', monospace;
+        }
+        th, td {
+            padding: 12px;
+            text-align: center;
+            border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+        }
+        th {
+            background: rgba(0, 255, 255, 0.2);
+            letter-spacing: 2px;
+        }
+        td {
+            font-size: 1rem;
+        }
+        .badge-normal { color: #0f0; }
+        .badge-hot { color: #ff4d4d; }
+        .badge-cold { color: #4dffb5; }
+
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 12px;
+            color: #6af;
+        }
+        @media (max-width: 700px) {
+            .value { font-size: 36px; }
+            .card { width: 200px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1><i class="fas fa-microchip"></i> SISTEM MONITORING SUHU <i class="fas fa-robot"></i> 
+            <span class="status-led"></span>
+        </h1>
+        <div class="sub">> real-time monitoring | neuralink protocol</div>
+    </div>
+
+    <div class="gauge-panel">
+        <div class="card">
+            <i class="fas fa-thermometer-half"></i>
+            <h3>SUHU RUANGAN</h3>
+            <div class="value temp-value" id="tempValue">--</div>
+            <div class="unit">°C</div>
+        </div>
+        <div class="card">
+            <i class="fas fa-tint"></i>
+            <h3>KELEMBAPAN</h3>
+            <div class="value hum-value" id="humValue">--</div>
+            <div class="unit">% RH</div>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <h3><i class="fas fa-chart-line"></i> GRAFIK TREND (20 data terakhir)</h3>
+        <canvas id="sensorChart"></canvas>
+    </div>
+
+    <div class="log-section">
+        <h3><i class="fas fa-database"></i> LOG / RIWAYAT SENSOR</h3>
+        <table id="logTable">
+            <thead>
+                <tr><th>Waktu</th><th>Suhu (°C)</th><th>Kelembaban (%)</th><th>Status</th></tr>
+            </thead>
+            <tbody id="logBody">
+                <tr><td colspan="4">Menunggu data dari sensor...</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <footer>⚡ MONITORING v3.0 | JARKOM | real-time cyber dashboard</footer>
+</div>
+
+<script>
+    const socket = io();
+    let chart;
+
+    // Inisialisasi Chart.js
+    const ctx = document.getElementById('sensorChart').getContext('2d');
+    chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: 'Suhu (°C)',
+                    data: [],
+                    borderColor: '#ff4d4d',
+                    backgroundColor: 'rgba(255, 77, 77, 0.1)',
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#ff4d4d',
+                    fill: true,
+                    tension: 0.2
+                },
+                {
+                    label: 'Kelembaban (%)',
+                    data: [],
+                    borderColor: '#4dffb5',
+                    backgroundColor: 'rgba(77, 255, 181, 0.05)',
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#4dffb5',
+                    fill: true,
+                    tension: 0.2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                y: {
+                    grid: { color: 'rgba(0, 255, 255, 0.2)' },
+                    title: { display: true, text: 'Nilai', color: '#0ff' }
+                },
+                x: {
+                    grid: { color: 'rgba(0, 255, 255, 0.1)' },
+                    ticks: { maxRotation: 45, autoSkip: true }
+                }
+            },
+            plugins: {
+                legend: { labels: { color: '#0ff' } }
+            }
+        }
+    });
+
+    // Fungsi update tabel log
+    function updateTable(history) {
+        const tbody = document.getElementById('logBody');
+        if (!history || history.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4">Belum ada data</td></tr>';
+            return;
+        }
+        let html = '';
+        history.forEach(item => {
+            let waktu = item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : '--';
+            let status = (item.temperature > 35) ? '🔥 Panas' : (item.temperature < 20 ? '❄️ Dingin' : '✅ Normal');
+            let statusClass = (item.temperature > 35) ? 'badge-hot' : (item.temperature < 20 ? 'badge-cold' : 'badge-normal');
+            html += `<tr>
+                        <td>${waktu}</td>
+                        <td>${item.temperature} °C</td>
+                        <td>${item.humidity} %</td>
+                        <td class="${statusClass}">${status}</td>
+                     </tr>`;
+        });
+        tbody.innerHTML = html;
+    }
+
+    // Update grafik berdasarkan history (urutan lama ke baru)
+    function updateChart(history) {
+        if (!history || history.length === 0) return;
+        const reversed = [...history].reverse();
+        const labels = reversed.map((item, idx) => {
+            if (item.timestamp) return new Date(item.timestamp).toLocaleTimeString();
+            else return `#${idx+1}`;
+        });
+        const temps = reversed.map(item => item.temperature);
+        const hums = reversed.map(item => item.humidity);
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = temps;
+        chart.data.datasets[1].data = hums;
+        chart.update();
+    }
+
+    // Socket event: data baru
+    socket.on('suhu-baru', (data) => {
+        document.getElementById('tempValue').innerHTML = data.temperature;
+        document.getElementById('humValue').innerHTML = data.humidity;
+    });
+
+    socket.on('history-update', (history) => {
+        updateTable(history);
+        updateChart(history);
+    });
+
+    // Ambil data awal dari REST API
+    async function fetchInitial() {
+        try {
+            const resCurr = await fetch('/api/current');
+            const curr = await resCurr.json();
+            if (curr.temperature !== '--') {
+                document.getElementById('tempValue').innerHTML = curr.temperature;
+                document.getElementById('humValue').innerHTML = curr.humidity;
+            }
+            const resHist = await fetch('/api/history');
+            const hist = await resHist.json();
+            updateTable(hist);
+            updateChart(hist);
+        } catch(e) { console.error(e); }
+    }
+    fetchInitial();
+</script>
+</body>
+</html>
