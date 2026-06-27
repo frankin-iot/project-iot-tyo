@@ -3,7 +3,7 @@ import random
 import time
 import json
 
-MQTT_BROKER = "172.20.10.2"
+MQTT_BROKER = "mqtt.tyoprakusudewo.bond"
 MQTT_PORT = 1883
 MQTT_TOPIC = "sensor/suhu"
 
