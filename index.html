@@ -3,358 +3,280 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ROBOTIC IoT | SUHU & HUMIDITY</title>
-    <!-- Font & Icons -->
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <!-- Chart.js -->
+    <title>IoT Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Socket.IO -->
-    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            background: radial-gradient(circle at 20% 30%, #0a0f1e, #03050b);
-            font-family: 'Share Tech Mono', 'Orbitron', monospace;
-            color: #0ff;
-            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(circle at 20% 30%, #0a0f1e 0%, #03050b 100%);
             min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
         }
-
-        /* Grid cyber */
-        body::before {
-            content: "";
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-image: 
-                linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
-            background-size: 40px 40px;
-            pointer-events: none;
-            z-index: 0;
-        }
-
         .container {
-            position: relative;
-            z-index: 1;
-            max-width: 1400px;
-            margin: 0 auto;
+            max-width: 1200px;
+            width: 100%;
+            background: rgba(10, 20, 30, 0.6);
+            backdrop-filter: blur(12px);
+            border-radius: 30px;
+            padding: 40px;
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
         }
-
-        /* Header */
-        .header {
+        h1 {
             text-align: center;
+            font-size: 2rem;
+            color: #0ff;
+            text-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
+            margin-bottom: 10px;
+            letter-spacing: 2px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #8aa;
             margin-bottom: 30px;
-            border-bottom: 2px solid #0ff;
-            padding-bottom: 15px;
-            box-shadow: 0 5px 20px rgba(0, 255, 255, 0.2);
-        }
-        .header h1 {
-            font-family: 'Orbitron';
-            font-size: 2.5rem;
-            letter-spacing: 4px;
-            text-shadow: 0 0 8px #0ff, 0 0 15px #0ff;
-            animation: glitch 3s infinite;
-        }
-        @keyframes glitch {
-            0%, 100% { text-shadow: 0 0 5px #0ff, 0 0 10px #0ff; }
-            95% { text-shadow: 0 0 2px #0ff, 0 0 5px #0ff; }
-            96% { text-shadow: -2px 0 red, 2px 0 blue; }
-        }
-        .sub {
             font-size: 0.9rem;
-            color: #8af;
         }
-        .status-led {
+        .status-row {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        .status-item {
+            background: rgba(0,0,0,0.3);
+            padding: 10px 25px;
+            border-radius: 50px;
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            color: #fff;
+            font-size: 0.9rem;
+        }
+        .status-item .led {
             display: inline-block;
             width: 12px;
             height: 12px;
             border-radius: 50%;
-            background-color: #0f0;
-            box-shadow: 0 0 8px #0f0;
+            margin-right: 8px;
             animation: pulse 1.5s infinite;
-            margin-left: 10px;
         }
+        .led.online { background: #0f0; box-shadow: 0 0 10px #0f0; }
+        .led.offline { background: #f00; animation: none; }
         @keyframes pulse {
-            0% { opacity: 0.3; transform: scale(0.8);}
-            100% { opacity: 1; transform: scale(1.2);}
+            0% { opacity: 0.4; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1.2); }
         }
-
-        /* Card Gauge */
-        .gauge-panel {
-            display: flex;
-            justify-content: center;
-            gap: 40px;
-            flex-wrap: wrap;
-            margin-bottom: 40px;
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
         }
-        .card {
-            background: rgba(10, 20, 30, 0.7);
-            backdrop-filter: blur(8px);
-            border: 1px solid #0ff;
+        .sensor-card {
+            background: rgba(0,0,0,0.3);
             border-radius: 20px;
-            padding: 20px;
-            width: 260px;
+            padding: 25px;
             text-align: center;
-            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
-            transition: transform 0.2s, box-shadow 0.2s;
+            border: 1px solid rgba(0, 255, 255, 0.15);
+            transition: 0.3s;
         }
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 0 30px #0ff;
-        }
-        .card i {
-            font-size: 48px;
-            margin-bottom: 10px;
-        }
-        .card h3 {
-            font-size: 1.2rem;
+        .sensor-card:hover { border-color: #0ff; box-shadow: 0 0 30px rgba(0,255,255,0.1); }
+        .sensor-label {
+            color: #8aa;
+            font-size: 0.85rem;
+            text-transform: uppercase;
             letter-spacing: 2px;
         }
-        .value {
-            font-size: 56px;
-            font-weight: bold;
-            font-family: 'Orbitron';
+        .sensor-value {
+            font-size: 4rem;
+            font-weight: 700;
+            color: #fff;
             margin: 10px 0;
-            text-shadow: 0 0 5px currentColor;
+            text-shadow: 0 0 20px rgba(0,255,255,0.2);
         }
-        .temp-value { color: #ff4d4d; }
-        .hum-value { color: #4dffb5; }
-        .unit { font-size: 1rem; margin-left: 5px; }
-
-        /* Chart Container */
+        .sensor-value.temp { color: #ff6b6b; text-shadow: 0 0 20px rgba(255,107,107,0.3); }
+        .sensor-value.hum { color: #4dffb5; text-shadow: 0 0 20px rgba(77,255,181,0.3); }
+        .sensor-unit { color: #8aa; font-size: 1rem; }
         .chart-container {
-            background: rgba(0, 0, 0, 0.6);
-            border: 1px solid #0ff;
+            background: rgba(0,0,0,0.3);
             border-radius: 20px;
             padding: 20px;
-            margin-bottom: 40px;
-            box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+            border: 1px solid rgba(0, 255, 255, 0.1);
+            margin-bottom: 20px;
         }
-        canvas {
-            max-height: 350px;
-            width: 100%;
-        }
-
-        /* Log Table */
-        .log-section {
-            background: rgba(0, 0, 0, 0.6);
-            border: 1px solid #0ff;
-            border-radius: 20px;
-            padding: 20px;
-            overflow-x: auto;
-        }
-        .log-section h3 {
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 1.5rem;
+        .chart-container h3 {
             color: #0ff;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-family: 'Share Tech Mono', monospace;
-        }
-        th, td {
-            padding: 12px;
-            text-align: center;
-            border-bottom: 1px solid rgba(0, 255, 255, 0.3);
-        }
-        th {
-            background: rgba(0, 255, 255, 0.2);
-            letter-spacing: 2px;
-        }
-        td {
+            margin-bottom: 15px;
+            font-weight: 400;
+            letter-spacing: 1px;
             font-size: 1rem;
         }
-        .badge-normal { color: #0f0; }
-        .badge-hot { color: #ff4d4d; }
-        .badge-cold { color: #4dffb5; }
-
+        canvas {
+            max-height: 250px;
+            width: 100%;
+        }
+        .log-container {
+            background: rgba(0,0,0,0.3);
+            border-radius: 20px;
+            padding: 20px;
+            border: 1px solid rgba(0, 255, 255, 0.1);
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .log-container h3 {
+            color: #0ff;
+            margin-bottom: 10px;
+            font-weight: 400;
+            letter-spacing: 1px;
+            font-size: 0.9rem;
+        }
+        .log-item {
+            color: #8aa;
+            font-size: 0.8rem;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-family: monospace;
+        }
+        .log-item .time { color: #0ff; }
+        .log-item .temp-log { color: #ff6b6b; }
+        .log-item .hum-log { color: #4dffb5; }
         footer {
             text-align: center;
+            color: #445;
+            font-size: 0.7rem;
             margin-top: 30px;
-            font-size: 12px;
-            color: #6af;
         }
         @media (max-width: 700px) {
-            .value { font-size: 36px; }
-            .card { width: 200px; }
+            .sensor-value { font-size: 2.5rem; }
+            .container { padding: 20px; }
         }
     </style>
 </head>
 <body>
 <div class="container">
-    <div class="header">
-        <h1><i class="fas fa-microchip"></i> SISTEM MONITORING SUHU <i class="fas fa-robot"></i> 
-            <span class="status-led"></span>
-        </h1>
-        <div class="sub">> real-time monitoring | neuralink protocol</div>
+    <h1>🌡️ IoT MONITORING</h1>
+    <div class="subtitle">Real-time | TYOHEBAT</div>
+
+    <div class="status-row">
+        <div class="status-item"><span class="led online" id="mqttLed"></span> MQTT: <span id="mqttStatus">Menghubungkan...</span></div>
+        <div class="status-item"><span class="led offline" id="sensorLed"></span> Sensor: <span id="sensorStatus">Menunggu data...</span></div>
+        <div class="status-item">📡 Data terakhir: <span id="lastUpdate">--:--:--</span></div>
     </div>
 
-    <div class="gauge-panel">
-        <div class="card">
-            <i class="fas fa-thermometer-half"></i>
-            <h3>SUHU RUANGAN</h3>
-            <div class="value temp-value" id="tempValue">--</div>
-            <div class="unit">°C</div>
+    <div class="sensor-grid">
+        <div class="sensor-card">
+            <div class="sensor-label">🌡️ Suhu</div>
+            <div class="sensor-value temp" id="suhu">--</div>
+            <div class="sensor-unit">°C</div>
         </div>
-        <div class="card">
-            <i class="fas fa-tint"></i>
-            <h3>KELEMBAPAN</h3>
-            <div class="value hum-value" id="humValue">--</div>
-            <div class="unit">% RH</div>
+        <div class="sensor-card">
+            <div class="sensor-label">💧 Kelembaban</div>
+            <div class="sensor-value hum" id="kelembaban">--</div>
+            <div class="sensor-unit">% RH</div>
         </div>
     </div>
 
     <div class="chart-container">
-        <h3><i class="fas fa-chart-line"></i> GRAFIK TREND (20 data terakhir)</h3>
+        <h3>📈 GRAFIK TREND (20 data terakhir)</h3>
         <canvas id="sensorChart"></canvas>
     </div>
 
-    <div class="log-section">
-        <h3><i class="fas fa-database"></i> LOG / RIWAYAT SENSOR</h3>
-        <table id="logTable">
-            <thead>
-                <tr><th>Waktu</th><th>Suhu (°C)</th><th>Kelembaban (%)</th><th>Status</th></tr>
-            </thead>
-            <tbody id="logBody">
-                <tr><td colspan="4">Menunggu data dari sensor...</td></tr>
-            </tbody>
-        </table>
+    <div class="log-container" id="logContainer">
+        <h3>📋 LOG</h3>
+        <div id="logList"><div class="log-item">⏳ Menunggu data...</div></div>
     </div>
-    <footer>⚡ MONITORING v3.0 | JARKOM | real-time cyber dashboard</footer>
+
+    <footer>⚡ Tyo Hebat | MQTT over WebSocket</footer>
 </div>
 
 <script>
-    const socket = io();
-    let chart;
+    const MQTT_BROKER = "wss://sensor.tyoprakusudewo.bond/mqtt";
+    const MQTT_TOPIC = "sensor/suhu";
+    let chart, historyData = [];
+    const MAX_HISTORY = 20;
 
-    // Inisialisasi Chart.js
     const ctx = document.getElementById('sensorChart').getContext('2d');
     chart = new Chart(ctx, {
         type: 'line',
         data: {
             labels: [],
             datasets: [
-                {
-                    label: 'Suhu (°C)',
-                    data: [],
-                    borderColor: '#ff4d4d',
-                    backgroundColor: 'rgba(255, 77, 77, 0.1)',
-                    borderWidth: 2,
-                    pointRadius: 3,
-                    pointBackgroundColor: '#ff4d4d',
-                    fill: true,
-                    tension: 0.2
-                },
-                {
-                    label: 'Kelembaban (%)',
-                    data: [],
-                    borderColor: '#4dffb5',
-                    backgroundColor: 'rgba(77, 255, 181, 0.05)',
-                    borderWidth: 2,
-                    pointRadius: 3,
-                    pointBackgroundColor: '#4dffb5',
-                    fill: true,
-                    tension: 0.2
-                }
+                { label: 'Suhu (°C)', data: [], borderColor: '#ff6b6b', backgroundColor: 'rgba(255,107,107,0.1)', fill: true, tension: 0.2, pointRadius: 3 },
+                { label: 'Kelembaban (%)', data: [], borderColor: '#4dffb5', backgroundColor: 'rgba(77,255,181,0.05)', fill: true, tension: 0.2, pointRadius: 3 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: true,
-            scales: {
-                y: {
-                    grid: { color: 'rgba(0, 255, 255, 0.2)' },
-                    title: { display: true, text: 'Nilai', color: '#0ff' }
-                },
-                x: {
-                    grid: { color: 'rgba(0, 255, 255, 0.1)' },
-                    ticks: { maxRotation: 45, autoSkip: true }
-                }
-            },
-            plugins: {
-                legend: { labels: { color: '#0ff' } }
-            }
+            scales: { y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8aa' } }, x: { ticks: { color: '#8aa', maxTicksLimit: 10 } } },
+            plugins: { legend: { labels: { color: '#8aa' } } }
         }
     });
 
-    // Fungsi update tabel log
-    function updateTable(history) {
-        const tbody = document.getElementById('logBody');
-        if (!history || history.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4">Belum ada data</td></tr>';
-            return;
-        }
-        let html = '';
-        history.forEach(item => {
-            let waktu = item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : '--';
-            let status = (item.temperature > 35) ? '🔥 Panas' : (item.temperature < 20 ? '❄️ Dingin' : '✅ Normal');
-            let statusClass = (item.temperature > 35) ? 'badge-hot' : (item.temperature < 20 ? 'badge-cold' : 'badge-normal');
-            html += `<tr>
-                        <td>${waktu}</td>
-                        <td>${item.temperature} °C</td>
-                        <td>${item.humidity} %</td>
-                        <td class="${statusClass}">${status}</td>
-                     </tr>`;
-        });
-        tbody.innerHTML = html;
-    }
-
-    // Update grafik berdasarkan history (urutan lama ke baru)
-    function updateChart(history) {
-        if (!history || history.length === 0) return;
-        const reversed = [...history].reverse();
-        const labels = reversed.map((item, idx) => {
-            if (item.timestamp) return new Date(item.timestamp).toLocaleTimeString();
-            else return `#${idx+1}`;
-        });
-        const temps = reversed.map(item => item.temperature);
-        const hums = reversed.map(item => item.humidity);
-        chart.data.labels = labels;
-        chart.data.datasets[0].data = temps;
-        chart.data.datasets[1].data = hums;
+    function updateChart() {
+        const rev = [...historyData].reverse();
+        chart.data.labels = rev.map(i => i.time);
+        chart.data.datasets[0].data = rev.map(i => i.temp);
+        chart.data.datasets[1].data = rev.map(i => i.hum);
         chart.update();
     }
 
-    // Socket event: data baru
-    socket.on('suhu-baru', (data) => {
-        document.getElementById('tempValue').innerHTML = data.temperature;
-        document.getElementById('humValue').innerHTML = data.humidity;
-    });
-
-    socket.on('history-update', (history) => {
-        updateTable(history);
-        updateChart(history);
-    });
-
-    // Ambil data awal dari REST API
-    async function fetchInitial() {
-        try {
-            const resCurr = await fetch('/api/current');
-            const curr = await resCurr.json();
-            if (curr.temperature !== '--') {
-                document.getElementById('tempValue').innerHTML = curr.temperature;
-                document.getElementById('humValue').innerHTML = curr.humidity;
-            }
-            const resHist = await fetch('/api/history');
-            const hist = await resHist.json();
-            updateTable(hist);
-            updateChart(hist);
-        } catch(e) { console.error(e); }
+    function addLog(msg, type = 'info') {
+        const logList = document.getElementById('logList');
+        const item = document.createElement('div');
+        item.className = 'log-item';
+        const time = new Date().toLocaleTimeString();
+        item.innerHTML = `<span class="time">[${time}]</span> ${msg}`;
+        logList.prepend(item);
+        if (logList.children.length > 50) logList.removeChild(logList.lastChild);
     }
-    fetchInitial();
+
+    const client = mqtt.connect(MQTT_BROKER);
+    client.on('connect', () => {
+        document.getElementById('mqttStatus').innerHTML = 'Online';
+        document.getElementById('mqttLed').className = 'led online';
+        addLog('✅ MQTT Terhubung');
+        client.subscribe(MQTT_TOPIC);
+    });
+    client.on('error', (err) => {
+        document.getElementById('mqttStatus').innerHTML = 'Error';
+        document.getElementById('mqttLed').className = 'led offline';
+        addLog('❌ MQTT Error: ' + err.message);
+    });
+    client.on('message', (topic, message) => {
+        try {
+            const data = JSON.parse(message.toString());
+            document.getElementById('suhu').innerHTML = data.suhu;
+            document.getElementById('kelembaban').innerHTML = data.kelembaban;
+            document.getElementById('sensorLed').className = 'led online';
+            document.getElementById('sensorStatus').innerHTML = 'Online';
+            document.getElementById('lastUpdate').innerHTML = new Date().toLocaleTimeString();
+
+            const time = new Date().toLocaleTimeString();
+            historyData.unshift({ temp: data.suhu, hum: data.kelembaban, time: time });
+            if (historyData.length > MAX_HISTORY) historyData.pop();
+            updateChart();
+            addLog(`📥 Suhu: <span class="temp-log">${data.suhu}°C</span> | Kelembaban: <span class="hum-log">${data.kelembaban}%</span>`);
+        } catch(e) {
+            addLog('❌ Error parsing data: ' + e.message);
+        }
+    });
+
+    setInterval(() => {
+        const last = document.getElementById('lastUpdate').innerHTML;
+        if (last === '--:--:--') return;
+        const now = Date.now();
+        const lastTime = new Date('1970-01-01T' + last).getTime();
+        if (now - lastTime > 10000) {
+            document.getElementById('sensorLed').className = 'led offline';
+            document.getElementById('sensorStatus').innerHTML = 'Offline (timeout)';
+        }
+    }, 2000);
 </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"3ab0b013d88441378624f6263e90710c","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
